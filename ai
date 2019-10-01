@@ -1,93 +1,170 @@
 ---main.js
-const model = tf.sequential();
-//config for layer
-const config_hidden = {
-  inputShape: [2],
-  activation: "sigmoid",
-  units: 4,
-  useBias: true
-};
-const config_output = { units: 1, activation: "sigmoid", useBias: true };
-//defining the hidden and output layer
-const hidden = tf.layers.dense(config_hidden);
-const output = tf.layers.dense(config_output);
-//adding layers to model
-model.add(hidden);
-model.add(output);
-//define an optimizer
-//const optimize = tf.train.sgd(0.1);
-
-//config for model
-const config = { optimizer: tf.train.sgd(0.1), loss: "meanSquaredError" };
-//compiling the model
-model.compile(config);
-console.log(
-  `compileed for ${config_hidden.inputShape[0]} input and ${
-    config_output.units
-  } output parameters`
+//----------------------------------------------------CONFIG
+let model = tf.sequential(); //activation: "sigmoid"
+model.add(
+  tf.layers.dense({
+    inputShape: [2],
+    units: 1,
+    useBias: true
+  })
 );
-//Dummy training data
-//const x_train = tf.tensor(normalised.input);
-const tensorData = convertToTensor(input(), expectedOutput());
-const x_train = tensorData.a;
-//Dummy training labels
-const y_train = tensorData.b;
-
-train_data().then(function() {
-  console.log("Training is Complete");
-  console.log("Predictions :");
-  
-  const test = tf.tensor([[0.3, 0.5]]);
-  let a = model.predict(test).print();
+model.add(tf.layers.dense({ units: 1, useBias: true }));
+model.compile({
+  optimizer: tf.train.sgd(0.2),
+  loss: "meanSquaredError"
 });
-async function train_data() {
-  for (let i = 0; i < 10; i++) {
-    const res = await model.fit(
-      x_train,
-      y_train,
-      (epoch = 1000),
-      (batch_size = 40)
-    );
+//----------------------------------------------------PREPARE DATA
+let data = {
+  input: [
+    4,
+    3,
+    23,
+    4,
+    3,
+    3,
+    3,
+    5,
+    4,
+    34,
+    43,
+    3,
+    3,
+    6,
+    6,
+    542,
+    3,
+    7,
+    76,
+    8,
+    6,
+    76,
+    7
+  ],
+  input2: [
+    6,
+    5,
+    32,
+    1,
+    5,
+    7,
+    7,
+    3,
+    43,
+    3,
+    0,
+    9,
+    8,
+    3,
+    1,
+    3,
+    3,
+    7,
+    7,
+    5,
+    8,
+    7,
+    4
+  ],
+  output: [
+    24,
+    15,
+    736,
+    4,
+    15,
+    21,
+    21,
+    15,
+    172,
+    102,
+    0,
+    27,
+    24,
+    18,
+    6,
+    1626,
+    9,
+    49,
+    532,
+    40,
+    48,
+    532,
+    28
+  ]
+};
+let tensorData = tf.tidy(() => {
+  let shuffledData = data.output.map((output, i) => [
+    data.input[i],
+    data.input2[i],
+    output
+  ]);
+  tf.util.shuffle(shuffledData);
+
+  let inputArray = shuffledData.map(el => [el[0], el[1]]);
+  let outputArray = shuffledData.map(el => el[2]);
+
+  let inputTensor = tf.tensor(inputArray);
+  let outputTensor = tf.tensor(outputArray);
+  let inputMax = inputTensor.max();
+  let inputMin = inputTensor.min();
+  let outputMax = outputTensor.max();
+  let outputMin = outputTensor.min();
+
+  let normalisedInput = inputTensor.sub(inputMin).div(inputMax.sub(inputMin));
+  let normalisedOutput = outputTensor
+    .sub(outputMin)
+    .div(outputMax.sub(outputMin));
+
+  return {
+    input: normalisedInput,
+    // input2: normalisedInput2,
+    output: normalisedOutput,
+    inputMax,
+    inputMin,
+    outputMax,
+    outputMin
+  };
+});
+//----------------------------------------------------TRAIN
+
+let x_train = tensorData.input;
+let y_train = tensorData.output;
+(async () => {
+  for (let i = 0; i < 50; i++) {
+    let res = await model.fit(x_train, y_train, {
+      batchSize: 32,
+      epochs: 100
+    });
     console.log(res.history.loss[0]);
   }
-}
-function convertToTensor(input, output) {
-  // Wrapping these calculations in a tidy will dispose any
-  // intermediate tensors.
+  console.log("Training is Complete");
+})().then(() => {
+  //----------------------------------------------------TEST
+  let arrayToTest = [[5, 5], [2, 20], [20, 20]];
+  let testTensor = tf.tensor(arrayToTest);
+  let normalisedTestTensor = testTensor
+    .sub(tensorData.inputMin)
+    .div(tensorData.inputMax.sub(tensorData.inputMin));
 
-  return tf.tidy(() => {
-    // Step 1. Shuffle the data
-    tf.util.shuffle(input, output);
+  const preds = model.predict(normalisedTestTensor);
 
-    const b = output.map(d => d[0]);
-    console.log(output);
+  const unNormPreds = preds
+    .mul(tensorData.outputMax.sub(tensorData.outputMin))
+    .add(tensorData.outputMin);
 
-    const aTensor = tf.tensor(input);
-    //const a2Tensor = tf.tensor2d(a2, [a2.length, 1]);
-    const bTensor = tf.tensor(b, [b.length, 1]);
-
-    //Step 3. Normalize the data to the range 0 - 1 using min-max scaling
-    const aMax = aTensor.max();
-    const aMin = aTensor.min();
-    const bMax = bTensor.max();
-    const bMin = bTensor.min();
-    //const a2Max = a2Tensor.max();
-    //const a2Min = a2Tensor.min();
-
-    const normalizeda = aTensor.sub(aMin).div(aMax.sub(aMin));
-    const normalizedb = bTensor.sub(bMin).div(bMax.sub(bMin));
-
-    return {
-      a: normalizeda,
-      b: normalizedb,
-      // Return the min/max bounds so we can use them later.
-      aMax,
-      aMin,
-      bMax,
-      bMin
-    };
+  unNormPreds.dataSync().forEach((predictedOutput, i) => {
+    console.log();
+    let realInput = arrayToTest[i];
+    let realOutput = arrayToTest[i][0] * arrayToTest[i][1];
+    console.log(
+      `input:${realInput} predicted:${predictedOutput.toFixed(
+        2
+      )} expected:${realOutput.toFixed(2)} difference:${Math.abs(
+        ((predictedOutput - realOutput) / predictedOutput) * 100
+      ).toFixed(2)}%`
+    );
   });
-}
+});
+
 ---data.js
 function input() {
   return [
