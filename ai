@@ -1,0 +1,185 @@
+---main.js
+const model = tf.sequential();
+//config for layer
+const config_hidden = {
+  inputShape: [2],
+  activation: "sigmoid",
+  units: 4,
+  useBias: true
+};
+const config_output = { units: 1, activation: "sigmoid", useBias: true };
+//defining the hidden and output layer
+const hidden = tf.layers.dense(config_hidden);
+const output = tf.layers.dense(config_output);
+//adding layers to model
+model.add(hidden);
+model.add(output);
+//define an optimizer
+//const optimize = tf.train.sgd(0.1);
+
+//config for model
+const config = { optimizer: tf.train.sgd(0.1), loss: "meanSquaredError" };
+//compiling the model
+model.compile(config);
+console.log(
+  `compileed for ${config_hidden.inputShape[0]} input and ${
+    config_output.units
+  } output parameters`
+);
+//Dummy training data
+//const x_train = tf.tensor(normalised.input);
+const tensorData = convertToTensor(input(), expectedOutput());
+const x_train = tensorData.a;
+//Dummy training labels
+const y_train = tensorData.b;
+
+train_data().then(function() {
+  console.log("Training is Complete");
+  console.log("Predictions :");
+  
+  const test = tf.tensor([[0.3, 0.5]]);
+  let a = model.predict(test).print();
+});
+async function train_data() {
+  for (let i = 0; i < 10; i++) {
+    const res = await model.fit(
+      x_train,
+      y_train,
+      (epoch = 1000),
+      (batch_size = 40)
+    );
+    console.log(res.history.loss[0]);
+  }
+}
+function convertToTensor(input, output) {
+  // Wrapping these calculations in a tidy will dispose any
+  // intermediate tensors.
+
+  return tf.tidy(() => {
+    // Step 1. Shuffle the data
+    tf.util.shuffle(input, output);
+
+    const b = output.map(d => d[0]);
+    console.log(output);
+
+    const aTensor = tf.tensor(input);
+    //const a2Tensor = tf.tensor2d(a2, [a2.length, 1]);
+    const bTensor = tf.tensor(b, [b.length, 1]);
+
+    //Step 3. Normalize the data to the range 0 - 1 using min-max scaling
+    const aMax = aTensor.max();
+    const aMin = aTensor.min();
+    const bMax = bTensor.max();
+    const bMin = bTensor.min();
+    //const a2Max = a2Tensor.max();
+    //const a2Min = a2Tensor.min();
+
+    const normalizeda = aTensor.sub(aMin).div(aMax.sub(aMin));
+    const normalizedb = bTensor.sub(bMin).div(bMax.sub(bMin));
+
+    return {
+      a: normalizeda,
+      b: normalizedb,
+      // Return the min/max bounds so we can use them later.
+      aMax,
+      aMin,
+      bMax,
+      bMin
+    };
+  });
+}
+---data.js
+function input() {
+  return [
+    [4, 12],
+    [2, 6],
+    [3, 9],
+    [4, 7],
+    [5, 15],
+    [4, 4],
+    [7, 21],
+    [3, 6],
+    [9, 2],
+    [10, 30],
+    [11, 7],
+    [4, 32],
+    [13, 6],
+    [2, 6],
+    [45, 9],
+    [16, 48],
+    [17, 9],
+    [18, 8],
+    [4, 6]
+  ];
+}
+function expectedOutput() {
+  return [
+    [48],
+    [12],
+    [27],
+    [28],
+    [75],
+    [16],
+    [147],
+    [18],
+    [18],
+    [300],
+    [77],
+    [128],
+    [78],
+    [12],
+    [405],
+    [768],
+    [153],
+    [144],
+    [24]
+  ];
+}
+function normalizeInputAndOutput(input, expectedOutput) {
+  let a = input.map(i => i[0]);
+  let aMax = Math.max(...a);
+  let aMin = Math.min(...a);
+  let b = input.map(i => i[1]);
+  let bMax = Math.max(...b);
+  let bMin = Math.min(...b);
+  let expected = expectedOutput.map(i => i[0]);
+  let expectedMax = Math.max(...expected);
+  let expectedMin = Math.min(...expected);
+  let max = Math.max(...a, ...b, ...expected);
+  let min = Math.min(...a, ...b, ...expected);
+  console.log(max);
+  console.log(min);
+  let normalisedInput = input.map(e => [
+    (e[0] - min) / (max - min),
+    (e[1] - min) / (max - min)
+  ]);
+  let normalisedOutput = expectedOutput.map(e => [(e[0] - min) / (max - min)]);
+  return {
+    input: normalisedInput,
+    output: normalisedOutput,
+    max: max,
+    min: min
+  };
+}
+function restore(n, max, min) {
+  return n * (max - min) + min;
+}
+function normalise(n, max, min) {
+  return [(n[0] - min) / (max - min), (n[1] - min) / (max - min)];
+}
+
+//[[0.1, 0.1, 0.1], [0.3, 0.3, 0.3], [0.7, 0.7, 0.7]];
+---index.html
+<html>
+
+<head>
+  <title>
+  </title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@0.12.0"> </script>
+  <script src="data.js" type="text/javascript"> </script>
+  <script src="main.js" type="text/javascript"> </script>
+</head>
+
+<body>Tensorflow JS Demo</body>
+
+</html>
